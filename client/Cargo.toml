@@ -1,0 +1,19 @@
+[package]
+name = "barracuda"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies] 
+jito-geyser-protos={path="../proto"}
+tokio = { version = "1", features = ["full"] }
+tonic = { version = "0.8.3", features = ["tls"] }
+# jito-solana-sdk = { git = "https://github.com/jito-foundation/jito-solana.git", tag = "v1.14.13-jito", package = "solana-sdk" }
+solana-sdk = "~1.14"
+serde = "1.0.178"
+serde_json = "1.0.104"
+serde-big-array="0.5.1"
+[build-dependencies]
+tonic-build = "0.8.4"
+
