@@ -3,8 +3,9 @@ use jito_geyser_protos::solana::geyser::{
 };
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+use solana_merkle_tree::MerkleTree;
 use std::time::Duration;
-use utils::{convert_batch_fixed, save_to_file};
+use utils::{convert_batch_fixed, save_to_file, send_root_to_contract};
 
 use crate::utils::slice_to_array_64;
 mod utils;
@@ -54,6 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             0
                         },
                         tx_idx: tx.tx_idx,
+                        slot: tx.slot,
                     })
                     .collect::<Vec<Receipt>>();
 
@@ -61,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     });
-
+    let (tx4, mut rx4) = tokio::sync::mpsc::unbounded_channel::<Superblock>();
     tokio::spawn(async move {
         let mut superblock_batches = vec![];
         let mut last_end_slot = 0;
@@ -77,7 +79,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         end_slot,
                         receipts: convert_batch_fixed(superblock_batches.clone()),
                     };
-                    save_to_file(superblock, "src/data.json".into());
+                    // save_to_file(superblock, "src/data.json".into());
+                    tx4.send(superblock);   
                     last_end_slot = end_slot;
                     superblock_batches = vec![];
                 } else {
@@ -88,11 +91,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         end_slot,
                         receipts: convert_batch_fixed(superblock_batches.clone()),
                     };
-                    save_to_file(superblock, "src/data.json".into());
+                    tx4.send(superblock.clone());
+
+                    // save_to_file(superblock, "src/data.json".into());
                     last_end_slot = end_slot;
                     superblock_batches = vec![];
                 }
             }
+        }
+    });
+    tokio::spawn(async move {
+        while let Some(superblock) = rx4.recv().await {
+            let tree = MerkleTree::new(&superblock.receipts.iter().map(|sblock| bincode::serialize(sblock).unwrap()).collect::<Vec<Vec<u8>>>());
+        //    println!("root: {:?}", tree.get_root());
+            send_root_to_contract(superblock,tree.get_root().unwrap().to_bytes()).await;
         }
     });
     while let Some(latest_txn) = rx.recv().await {
@@ -114,7 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize,Clone)]
 pub struct Superblock {
     /// inclusive
     pub start_slot: u64,
@@ -128,6 +140,7 @@ pub struct Superblock {
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct ReceiptBatch(Vec<Receipt>, u64);
 
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct Receipt {
     // receipts must be order by the txns index in the block
@@ -136,4 +149,12 @@ pub struct Receipt {
     pub signature: String,
     // 1 being successful and 0 being failed
     pub status: u8,
+
+    pub slot: u64
 }
+
+// impl AsRef<[u8]> for Receipt{
+//     fn as_ref(&self) -> &[u8] {
+//         bin
+//     }
+// }

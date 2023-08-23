@@ -1,2 +1,2 @@
 [workspace]
-members=["client","proto"]
+members = ["client", "proto", "programs/tinydancer-program-library/programs/*"]
