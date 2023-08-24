@@ -104,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(superblock) = rx4.recv().await {
             let tree = MerkleTree::new(&superblock.receipts.iter().map(|sblock| bincode::serialize(sblock).unwrap()).collect::<Vec<Vec<u8>>>());
         //    println!("root: {:?}", tree.get_root());
-            send_root_to_contract(superblock,tree.get_root().unwrap().to_bytes()).await;
+            send_root_to_contract(superblock,tree.get_root().unwrap().to_bytes());
         }
     });
     while let Some(latest_txn) = rx.recv().await {
@@ -137,7 +137,7 @@ pub struct Superblock {
 }
 
 /// (receipts, start_slot)
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone,)]
 pub struct ReceiptBatch(Vec<Receipt>, u64);
 
 
@@ -158,3 +158,44 @@ pub struct Receipt {
 //         bin
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::{send_root_to_contract, convert_batch_fixed};
+    use crate::{Receipt, ReceiptBatch, Superblock};
+    use solana_merkle_tree::MerkleTree;
+
+
+    #[test]
+    fn test_merkle_tree() {
+        let mut receipts = vec![];
+        for i in 0..100 {
+            receipts.push(Receipt {
+                tx_idx: i,
+                signature: "signature".into(),
+                status: 1,
+                slot: 0,
+            })
+        }
+        let batch = ReceiptBatch(receipts, 0);
+        let mut batch_array = vec![];
+        for _ in 0..10 {
+            batch_array.push(batch.clone())
+        }
+        let superblock = Superblock {
+            start_slot: 0,
+            end_slot: 100,
+            receipts: convert_batch_fixed(batch_array),
+        };
+        let tree = MerkleTree::new(
+            &superblock
+                .receipts
+                .iter()
+                .map(|sblock| bincode::serialize(sblock).unwrap())
+                .collect::<Vec<Vec<u8>>>(),
+        );
+       
+            send_root_to_contract(superblock, tree.get_root().unwrap().to_bytes());
+      
+    }
+}

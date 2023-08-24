@@ -2,7 +2,7 @@ use std::{fs, rc::Rc};
 
 use crate::Superblock;
 use anchor_client::solana_sdk::pubkey::Pubkey;
-use anchor_client::solana_sdk::signature::{Keypair, Signer};
+use anchor_client::solana_sdk::signature::Signer;
 use anchor_client::{Client, Cluster};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use solana_sdk::pubkey;
@@ -49,7 +49,7 @@ pub fn read_from_file(path: String) -> Vec<Superblock> {
     superblocks
 }
 
-pub async fn send_root_to_contract(superblock: Superblock, root: [u8; 32]) {
+pub fn send_root_to_contract(superblock: Superblock, root: [u8; 32]) {
     let payer = read_keypair_file(&*shellexpand::tilde("~/.config/solana/id.json"))
         .expect("Example requires a keypair file");
     let url = Cluster::Custom(
@@ -59,14 +59,16 @@ pub async fn send_root_to_contract(superblock: Superblock, root: [u8; 32]) {
     let payer = Rc::new(payer);
     let client =
         Client::new_with_options(url.clone(), payer.clone(), CommitmentConfig::processed());
-
+   
     let client = Arc::new(client);
-    let pid = pubkey!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+    let pid = pubkey!("8iRs7VTbXwErab5vUjRH1tzJoUKLJpe2crYPXMZQKFpR");
     let program = client.program(pid);
     let seed = [3u8; 32];
+  
     let mut rng: StdRng = SeedableRng::from_seed(seed);
     let mut bytes = [0u8; 32];
     rng.fill_bytes(&mut bytes);
+   
     let (superblock_account, _) = Pubkey::find_program_address(
         &[
             b"superblock",
@@ -77,26 +79,23 @@ pub async fn send_root_to_contract(superblock: Superblock, root: [u8; 32]) {
         &pid,
     );
 
-    // // `Initialize` parameters.
-    // let dummy_a = Keypair::new();
-    // let dummy_b = Keypair::new();
+
     let authority = program.payer();
     let signature = payer.sign_message(&root);
+
     program
         .request()
         .accounts(tinydancer_program_library::accounts::PushSuperblock {
             superblock: superblock_account,
             signer: authority,
-            system_program: anchor_client::solana_sdk::system_program::id(),
+            system_program: anchor_client::solana_sdk::system_program::ID,
         })
         .args(tinydancer_program_library::instruction::PushSuperblock {
+            slot_start: superblock.start_slot,
+            random_hash: bytes,
             root,
             signature: signature.into(),
             slot_end: superblock.end_slot,
-            slot_start: superblock.start_slot,
-            random_hash: bytes
         })
-        .send()
-        .unwrap();
-    
+        .send().unwrap();
 }

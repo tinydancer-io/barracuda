@@ -1,12 +1,12 @@
 use anchor_lang::prelude::*;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("8iRs7VTbXwErab5vUjRH1tzJoUKLJpe2crYPXMZQKFpR");
 
 #[program]
 pub mod tinydancer_program_library {
     use super::*;
 
-    pub fn push_superblock(ctx: Context<PushSuperblock>, root: [u8;32], signature: [u8;64],  slot_start: u64, slot_end: u64,random_hash: [u8;32] ) -> Result<()> {
+    pub fn push_superblock(ctx: Context<PushSuperblock>, slot_start: u64,random_hash: [u8;32], root: [u8;32], signature: [u8;64], slot_end: u64, ) -> Result<()> {
         
         ctx.accounts.superblock.validator_identity = ctx.accounts.signer.key();
         ctx.accounts.superblock.slot_start = slot_start;
@@ -20,7 +20,7 @@ pub mod tinydancer_program_library {
 }
 
 #[derive(Accounts)]
-#[instruction(slot_start:u64,random_hash: [u8;32])]
+#[instruction(slot_start: u64,random_hash: [u8;32])]
 pub struct PushSuperblock<'info> {
     #[account(init,seeds=[b"superblock",signer.key().as_ref(),&slot_start.to_be_bytes(),&random_hash],bump,payer=signer,space=Superblock::LEN)]
     pub superblock: Account<'info,Superblock>,
